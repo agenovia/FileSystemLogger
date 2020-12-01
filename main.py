@@ -50,7 +50,7 @@ def parse_arguments(args):
 
 
 if __name__ == '__main__':
-    from Utils.logit import start_logging
+    from utils.logit import start_logging
 
     start_logging()
 
