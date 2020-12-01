@@ -75,7 +75,7 @@ from watchdog.observers import (Observer,
                                 read_directory_changes,
                                 )
 
-from filesystemlogger.Current.scraper import scrape
+from filesystemlogger.scraper import scrape
 
 """
 IMPORTANT
