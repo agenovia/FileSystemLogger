@@ -230,21 +230,21 @@ class EventCoordinator(FileSystemEventHandler):
         # if there is a scraper provided, then delegate tasks to the scraper and log both its successful callback and
         # its error callback
         if self.scraper is not None:
-            self.pool.apply_async(self.scraper, args=[event], callback=self.scraper_callback,
+            self.pool.apply_async(self.scraper, args=[event, time.time()], callback=self.scraper_callback,
                                   error_callback=self.scraper_exception)
 
     def on_created(self, event):
         # if there is a scraper provided, then delegate tasks to the scraper and log both its successful callback and
         # its error callback
         if self.scraper is not None:
-            self.pool.apply_async(self.scraper, args=[event], callback=self.scraper_callback,
+            self.pool.apply_async(self.scraper, args=[event, time.time()], callback=self.scraper_callback,
                                   error_callback=self.scraper_exception)
 
     def on_deleted(self, event):
         # if there is a scraper provided, then delegate tasks to the scraper and log both its successful callback and
         # its error callback
         if self.scraper is not None:
-            self.pool.apply_async(self.scraper, args=[event], callback=self.scraper_callback,
+            self.pool.apply_async(self.scraper, args=[event, time.time()], callback=self.scraper_callback,
                                   error_callback=self.scraper_exception)
 
     def on_modified(self, event):

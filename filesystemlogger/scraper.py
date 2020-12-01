@@ -1,6 +1,7 @@
 from os.path import dirname, basename
 from os import stat
 from datetime import datetime
+import time
 
 
 class DetailScraper:
@@ -46,9 +47,14 @@ class DetailScraper:
                    }
     EVENT_TYPES = {key: dict(zip(['object_type', 'event_type'], values)) for key, values in EVENT_TYPES.items()}
 
-    def __init__(self, event):
+    def __init__(self, event, observer_init):
         self.event = event
         self.event_type = self.EVENT_TYPES[event.__class__.__name__]
+
+        # metainformation for determining how soon after an event is observed is it scraped
+        self.observer_init = observer_init
+        self.scraper_init = time.time()
+
         # TODO IDEA: can we have a recursive loop for this class that handles recursively checking meta-information
         # TODO of a modified event_type. That way we can just make sure on the coordinator side to
 
@@ -90,11 +96,18 @@ class DetailScraper:
         return {'fullpath': _path, 'directory': _dir, 'filename': _file, 'created_time': _ctime,
                 'modified_time': _mtime, 'size': _size}
 
+    @property
+    def meta(self):
+        _now = time.time()
+        _metainfo = [self.observer_init, self.scraper_init, _now, (_now - self.observer_init)]
+        _keys = ['observer_time', 'scraper_start', 'scraper_end', 'time_elapsed_since_observation']
+        return dict(zip(_keys, _metainfo))
+
     def details(self):
-        return self.event_type, self.src, self.dst
+        return self.event_type, self.src, self.dst, self.meta
 
 
-def scrape(event):
-    _event = DetailScraper(event)
+def scrape(event, observer_init):
+    _event = DetailScraper(event, observer_init)
     _details = _event.details()
-    return {'event': _details[0], 'source': _details[1], 'destination': _details[2]}
+    return {'event': _details[0], 'source': _details[1], 'destination': _details[2], 'meta': _details[3]}
