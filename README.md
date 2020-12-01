@@ -1,5 +1,5 @@
 # FileSystemLogger
-FileSystemLogger for work. Used to capture events recursively under a root directory.
+FileSystemLogger for work. Used to capture events under a root directory. Born out of a need to track file changes under important directories.
 
 Python 3.7.4
 

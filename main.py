@@ -1,10 +1,11 @@
-import sys
-import signal
 import logging
+import signal
+import sys
+import time
+from argparse import ArgumentParser
+
 from filesystemlogger.observer import EventCoordinator, EventObserver
 from filesystemlogger.scraper import scrape
-from argparse import ArgumentParser
-import time
 
 
 def keyboard_interrupt_handler(sig, frame):
@@ -49,9 +50,9 @@ def parse_arguments(args):
 
 
 if __name__ == '__main__':
-    from realcoolshit import standard_logging
+    from Utils.logit import start_logging
 
-    standard_logging.std_log()
+    start_logging()
 
     testing = True
 

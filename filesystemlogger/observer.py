@@ -75,15 +75,13 @@ from watchdog.observers import (Observer,
                                 read_directory_changes,
                                 )
 
-from filesystemlogger.scraper import scrape
-
 """
 IMPORTANT
 
 monkeypatching the queue_events method on the WindowsApiEmitter class of the read_directory_changes module. This is 
 necessary because the original code does not handle the reacquisition of directory handles if an exception is raised as 
-a consequence of the directory being unreachable. To enhance this behavior, I'm monkeypatching (modifying on runtime) 
-the method and adding a block of code to reacquire the handle when it is dropped
+a consequence of the directory being unreachable. To enhance this behavior, I'm monkeypatching the method and adding a 
+block of code to reacquire the handle when it is dropped
 """
 
 # assign old method to a new method name
