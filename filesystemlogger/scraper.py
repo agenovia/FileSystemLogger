@@ -99,7 +99,11 @@ class DetailScraper:
     @property
     def meta(self):
         _now = time.time()
-        _metainfo = [self.observer_init, self.scraper_init, _now, (_now - self.observer_init)]
+        _metainfo = [datetime.fromtimestamp(self.observer_init).replace(microsecond=0).__str__(),
+                     datetime.fromtimestamp(self.scraper_init).replace(microsecond=0).__str__(),
+                     datetime.fromtimestamp(_now).replace(microsecond=0).__str__(),
+                     round((_now - self.observer_init), 2)
+                     ]
         _keys = ['observer_time', 'scraper_start', 'scraper_end', 'time_elapsed_since_observation']
         return dict(zip(_keys, _metainfo))
 

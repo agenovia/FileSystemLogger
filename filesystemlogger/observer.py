@@ -70,6 +70,7 @@ import signal
 import time
 from datetime import datetime
 
+from queue import Queue
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import (Observer,
                                 read_directory_changes,
@@ -180,8 +181,6 @@ class EventCoordinator(FileSystemEventHandler):
     def __init__(self, workers: int, scraper, logger=None):
         super().__init__()
         self.workers = workers
-        self.scraper = scraper
-        self.logger = logger
 
         # a pool of workers will perform metadata scraping in parallel
         self.pool = mp.Pool(workers, self.init_worker)
@@ -200,15 +199,17 @@ class EventCoordinator(FileSystemEventHandler):
         #    def __init__(self, details: tuple):
         self.logger = logger
 
+        self.queue = Queue()
+
     def __repr__(self):
         return f"EventCoordinator(workers={self.workers}, scraper={self.scraper.__repr__()}, " \
                f"logger={self.logger.__repr__()})"
 
-    @staticmethod
-    def scraper_callback(cb):
+    def scraper_callback(self, cb):
         """This is what the scraper will return in normal operation. This is the object we will use to pass to the
         Logger class. Configure the logger here."""
         logging.debug(cb)
+        self.queue.put_nowait(cb)
 
     @staticmethod
     def scraper_exception(cb):
@@ -257,7 +258,8 @@ class EventCoordinator(FileSystemEventHandler):
         pass
 
     def terminate_workers(self):
-        """This destructor ensures that the pool has finished all its tasks and is exited gracefully"""
+        """This destructor ensures that the workers in the multiprocessing pool have finished all their tasks and are
+        exited gracefully"""
         self.pool.terminate()
         self.pool.close()
         self.pool.join()
