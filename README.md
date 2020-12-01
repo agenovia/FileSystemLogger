@@ -1,8 +1,9 @@
 # FileSystemLogger
 FileSystemLogger for work. Used to capture events recursively under a root directory.
 
+Python 3.7.4
+
 ## Prerequisites
-Python 3.7
 ```
 pip install watchdog sqlalchemy pyodbc
 ```
