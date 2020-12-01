@@ -69,7 +69,7 @@ class DetailScraper:
         _mtime = datetime.fromtimestamp(_stat.st_mtime).replace(microsecond=0).__str__() if _stat else None
 
         return {'fullpath': _path, 'directory': _dir, 'filename': _file, 'created_time': _ctime,
-                'modified_time': _mtime}
+                'modified_time': _mtime, 'size': _size}
 
     @property
     def dst(self):
@@ -88,7 +88,7 @@ class DetailScraper:
         _mtime = datetime.fromtimestamp(_stat.st_mtime).replace(microsecond=0).__str__() if _stat else None
 
         return {'fullpath': _path, 'directory': _dir, 'filename': _file, 'created_time': _ctime,
-                'modified_time': _mtime}
+                'modified_time': _mtime, 'size': _size}
 
     def details(self):
         return self.event_type, self.src, self.dst

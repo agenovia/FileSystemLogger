@@ -179,7 +179,7 @@ class EventCoordinator(FileSystemEventHandler):
             at the soonest possible time
     """
 
-    def __init__(self, workers: int = 6, scraper=None, logger=None):
+    def __init__(self, workers: int, scraper, logger=None):
         super().__init__()
         self.workers = workers
         self.scraper = scraper
@@ -266,7 +266,7 @@ class EventCoordinator(FileSystemEventHandler):
 
 
 class EventObserver(Observer):
-    def __init__(self, path: str, coordinator: EventCoordinator, timeout: int = 5):
+    def __init__(self, path: str, coordinator: EventCoordinator, timeout: int = 5, recursive: bool = False):
         """
         Context manager for watching directory changes
 
@@ -281,12 +281,16 @@ class EventObserver(Observer):
         # made this a private variable so it doesn't mess up the parent class' vars
         self._timeout = timeout
 
+        # whether the observer is recursive
+        self.recursive = recursive
+
     def __repr__(self):
         return f"EventObserver(path={self.path}, coordinator={self.coordinator.__repr__()}, timeout={self._timeout}"
 
     def __enter__(self):
-        self.schedule(event_handler=self.coordinator, path=self.path, recursive=True)
+        self.schedule(event_handler=self.coordinator, path=self.path, recursive=self.recursive)
         self.start()
+        logging.info(f"Now watching the path '{self.path}'. Recursive: {self.recursive}")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -302,48 +306,3 @@ class EventObserver(Observer):
         self.join()
         __end = datetime.now()
         logging.debug(f"pool successfully closed. {__end - __start} elapsed")
-
-
-def keyboard_interrupt_handler(sig, frame):
-    """Make sure keyboard interrupts are handled gracefully so they don't flood stdout"""
-    logging.info(f"A KeyboardInterrupt (ID: {sig}) has been captured. Terminating pool of workers and closing the pool")
-    # treat all KeyboardInterrupt signals as a graceful exit and return 0 after successfully destroying the pool
-    # pool destruction is handled by the context and does not need to be called separately in this scope
-    exit(0)
-
-
-def main():
-    pass
-
-
-def test():
-    # initialize the coordinator with 6 workers
-    coordinator = EventCoordinator(workers=6, scraper=scrape)
-
-    # initialize the observer using the path and passing the coordinator
-    obs = EventObserver(path=r"\\scdatap1\InformationTechnology\Aaron Genovia\temp\NewFileWatcher",
-                        coordinator=coordinator,
-                        )
-
-    # handle all interrupts in this scope via a call to keyboard_interrupt_handler
-    signal.signal(signal.SIGINT, keyboard_interrupt_handler)
-
-    # start the context
-    with obs:
-        while True:
-            # just keep looping until an interrupt is captured by the console
-            # the observer and coordinator classes only need to be initialized and will operate on their respective
-            # threads until destroyed
-            time.sleep(1)
-
-
-if __name__ == '__main__':
-    from realcoolshit import standard_logging
-
-    standard_logging.std_log()
-
-    testing = True
-    if testing:
-        test()
-    else:
-        main()
