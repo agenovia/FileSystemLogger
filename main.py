@@ -4,8 +4,10 @@ import sys
 import time
 from argparse import ArgumentParser
 
-from filesystemlogger.observer import EventCoordinator, EventObserver
+from filesystemlogger.observer import EventObserver
+from filesystemlogger.coordinator import EventCoordinator
 from filesystemlogger.scraper import scrape
+from filesystemlogger.logger import SQLLogger
 
 
 def keyboard_interrupt_handler(sig, frame):
@@ -17,19 +19,23 @@ def keyboard_interrupt_handler(sig, frame):
 
 
 def main(*args, **kwargs):
+    # initialize the logger
+    logger = SQLLogger(queue=None, server='SCSQLD2', database='OpSched', table='FileCatalogTest_V4', schema='dbo',
+                       driver='SQL+Server')
+
     # initialize the coordinator with 6 workers and a scraper function
-    coordinator = EventCoordinator(workers=int(kwargs['workers']), scraper=scrape)
+    coordinator = EventCoordinator(workers=int(kwargs['workers']), scraper=scrape, logger=logger)
 
     # initialize the observer using the path and passing the coordinator
-    obs = EventObserver(path=kwargs['directory'],
-                        coordinator=coordinator,
-                        )
+    observer = EventObserver(path=kwargs['directory'],
+                             coordinator=coordinator,
+                             )
 
     # handle all interrupts in this scope via a call to keyboard_interrupt_handler
     signal.signal(signal.SIGINT, keyboard_interrupt_handler)
 
     # start the context
-    with obs:
+    with observer:
         while True:
             # just keep looping until an interrupt is captured by the console
             # the observer and coordinator classes only need to be initialized and will operate on their respective

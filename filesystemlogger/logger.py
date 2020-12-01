@@ -22,7 +22,7 @@ class TableNotFound(Exception):
 
 
 class SQLLogger(Thread):
-    def __init__(self, queue, server, database, table, schema, driver, tbl_obj=None):
+    def __init__(self, queue, server, database, table, schema, driver, tbl_obj=None, callback=None):
         '''
 
         :param queue: This is the threading Queue to use for inserting new records
@@ -33,6 +33,7 @@ class SQLLogger(Thread):
         :param driver: ODBC driver to use
         '''
         super().__init__()
+        self.callback = callback
         self.queue = queue
         self.server = server
         self.database = database
@@ -42,7 +43,7 @@ class SQLLogger(Thread):
         self.engine = sa.create_engine(f'mssql+pyodbc://{self.server}/{self.database}?driver={self.driver}')
 
         # reusing objects so I don't have to do a lookup every time
-        self.tbl_obj = self._tbl_obj() if tbl_obj is None else tbl_obj
+        self.tbl_obj = tbl_obj
 
     def _tbl_obj(self, timeout=60):
         while True:
@@ -97,7 +98,9 @@ class SQLLogger(Thread):
         _ev = details['event']
         _src = details['source']
         _dst = details['destination']
-        _ins = {'EventType': _ev['event_type'],
+        _meta = details['meta']
+        _ins = {'EventTime': _meta['observer_time'],
+                'EventType': _ev['event_type'],
                 'ObjectType': _ev['object_type'],
                 'SourcePath': _src['fullpath'],
                 'SourceDirectory': _src['directory'],
@@ -111,42 +114,48 @@ class SQLLogger(Thread):
                 'DestinationModifiedTime': _dst['modified_time'],
                 }
 
-    def insert(self, n=100, timeout=60):
-        """Extracts dictionary objects from the queue and inserts them to the target table object
+    def run(self):
+        self.tbl_obj = self._tbl_obj() if self.tbl_obj is None else self.tbl_obj
+        while True:
+            item = self.queue.get()
+            self.callback(item)
 
-        `n` - number of records to insert at one time
-        `timeout` - time to sleep
-        `warn` - threshold for warning on consecutive retries
-        """
-
-        def chunks(l):
-            """chunk the insert list so the SQL insert doesn't bomb out. 2100 max parameters allowed. Each column is a
-            parameter, so if you're inserting 1000 records with 5 columns, that's 5000 parameters!"""
-            for i in range(0, len(l), n):
-                yield l[i:i + n]
-
-        with self.sql_connection() as conn:
-            start = datetime.now()
-            failures = 0
-            for chunk in chunks(self.inserts):
-                while True:
-                    try:
-                        logging.debug(f'inserting {len(chunk)} records')
-                        ins = self.tbl_obj.insert(chunk)
-                        conn.execute(ins)
-                        logging.debug(f'inserted {len(chunk)} records')
-                        break
-                    except (pyodbc.ProgrammingError, pyodbc.OperationalError) as e:
-                        logging.exception(e)
-                        checkpoint = datetime.now()
-                        failures += 1
-                        elapsed_min = (checkpoint - start).total_seconds() / 60.0
-                        logging.warning(f'Insertion has failed {failures} time(s). Time elapsed: {elapsed_min} minutes')
-                        logging.warning(f'chunk failed to insert')
-                        logging.warning(f'retrying chunk in {timeout} seconds')
-                        time.sleep(timeout)
-
-        return self.tbl_obj
+    # def insert(self, n=100, timeout=60):
+    #     """Extracts dictionary objects from the queue and inserts them to the target table object
+    #
+    #     `n` - number of records to insert at one time
+    #     `timeout` - time to sleep
+    #     `warn` - threshold for warning on consecutive retries
+    #     """
+    #
+    #     def chunks(l):
+    #         """chunk the insert list so the SQL insert doesn't bomb out. 2100 max parameters allowed. Each column is a
+    #         parameter, so if you're inserting 1000 records with 5 columns, that's 5000 parameters!"""
+    #         for i in range(0, len(l), n):
+    #             yield l[i:i + n]
+    #
+    #     with self.sql_connection() as conn:
+    #         start = datetime.now()
+    #         failures = 0
+    #         for chunk in chunks(self.inserts):
+    #             while True:
+    #                 try:
+    #                     logging.debug(f'inserting {len(chunk)} records')
+    #                     ins = self.tbl_obj.insert(chunk)
+    #                     conn.execute(ins)
+    #                     logging.debug(f'inserted {len(chunk)} records')
+    #                     break
+    #                 except (pyodbc.ProgrammingError, pyodbc.OperationalError) as e:
+    #                     logging.exception(e)
+    #                     checkpoint = datetime.now()
+    #                     failures += 1
+    #                     elapsed_min = (checkpoint - start).total_seconds() / 60.0
+    #                     logging.warning(f'Insertion has failed {failures} time(s). Time elapsed: {elapsed_min} minutes')
+    #                     logging.warning(f'chunk failed to insert')
+    #                     logging.warning(f'retrying chunk in {timeout} seconds')
+    #                     time.sleep(timeout)
+    #
+    #     return self.tbl_obj
 
 
 class SQLInsert:
