@@ -146,11 +146,11 @@ class EventObserver(Observer):
 
     def close(self):
         """Context destructor. Handles destruction of multiprocessing pools in a controlled manner"""
-        logging.debug('closing multiprocessing pool, please wait as all workers wrap up...')
-        __start = datetime.now()
-        # make sure the coordinator terminates the logger and all workers before continuing with observer destruction
+        # tell the coordinator to terminate the logger and all workers before continuing with observer destruction
         self.coordinator.terminate_operations()
+        logging.debug('terminating observer')
+        __start = datetime.now()
         self.stop()
         self.join()
         __end = datetime.now()
-        logging.debug(f"pool successfully closed. {__end - __start} elapsed")
+        logging.debug(f"observer successfully terminated. {__end - __start} elapsed")

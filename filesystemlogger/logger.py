@@ -60,17 +60,18 @@ class SQLLogger(Thread):
                 else:
                     meta = sa.schema.MetaData(schema=self.schema)
 
-                meta.reflect(bind=self.engine)
-                tbl = None
-                logging.debug(f'searching for table {self.table}')
-                for table_name, table in meta.tables.items():
-                    if table_name == f'{self.schema}.{self.table}':
-                        logging.debug(f'table found: {table_name}')
-                        tbl = table
-                if tbl is None:
-                    raise TableNotFound(self.table)
-                else:
-                    return tbl
+                if self.should_keep_running:
+                    meta.reflect(bind=self.engine)
+                    tbl = None
+                    logging.debug(f'searching for table {self.table}')
+                    for table_name, table in meta.tables.items():
+                        if table_name == f'{self.schema}.{self.table}':
+                            logging.debug(f'table found: {table_name}')
+                            tbl = table
+                    if tbl is None:
+                        raise TableNotFound(self.table)
+                    else:
+                        return tbl
             except (pyodbc.ProgrammingError, pyodbc.OperationalError, OperationalError) as e:
                 logging.exception(e, exc_info=True)
                 logging.debug(f'SQL connection could not be established. Retrying in {timeout} seconds')
@@ -121,12 +122,28 @@ class SQLLogger(Thread):
                 }
         return _ins
 
-    def run(self):
+    def run(self, timeout=60):
         self.tbl_obj = self._tbl_obj() if self.tbl_obj is None else self.tbl_obj
-        while self.should_keep_running:
-            item = self.queue.get()
-            _ins = self.prepare_inserts(item)
-            self.callback(_ins)
+        failures = 0
+        start = None
+        with self.sql_connection() as con:
+            while self.should_keep_running:
+                    try:
+                        start = time.time()
+                        item = self.queue.get()
+                        _ins = self.prepare_inserts(item)
+                        logging.debug(_ins)
+                        con.execute(self.tbl_obj.insert(_ins))
+                        failures = 0
+                    except (pyodbc.ProgrammingError, pyodbc.OperationalError) as e:
+                        logging.exception(e)
+                        checkpoint = time.time()
+                        failures += 1
+                        elapsed_min = (checkpoint - start) / 60.0
+                        logging.warning(f'Insertion has failed {failures} time(s). Time elapsed: {elapsed_min} minutes')
+                        logging.warning(f'retrying in {timeout} seconds')
+                        time.sleep(timeout)
+                        self.callback(e)
 
     def stop(self):
         logging.debug(f'the logger has received a signal to terminate')
@@ -144,43 +161,6 @@ class SQLLogger(Thread):
                 pickle.dump(_savequeue, f)
         __end = datetime.now()
         logging.debug(f"logger thread successfully stopped. {__end - __start} elapsed")
-
-    # def insert(self, n=100, timeout=60):
-    #     """Extracts dictionary objects from the queue and inserts them to the target table object
-    #
-    #     `n` - number of records to insert at one time
-    #     `timeout` - time to sleep
-    #     `warn` - threshold for warning on consecutive retries
-    #     """
-    #
-    #     def chunks(l):
-    #         """chunk the insert list so the SQL insert doesn't bomb out. 2100 max parameters allowed. Each column is a
-    #         parameter, so if you're inserting 1000 records with 5 columns, that's 5000 parameters!"""
-    #         for i in range(0, len(l), n):
-    #             yield l[i:i + n]
-    #
-    #     with self.sql_connection() as conn:
-    #         start = datetime.now()
-    #         failures = 0
-    #         for chunk in chunks(self.inserts):
-    #             while True:
-    #                 try:
-    #                     logging.debug(f'inserting {len(chunk)} records')
-    #                     ins = self.tbl_obj.insert(chunk)
-    #                     conn.execute(ins)
-    #                     logging.debug(f'inserted {len(chunk)} records')
-    #                     break
-    #                 except (pyodbc.ProgrammingError, pyodbc.OperationalError) as e:
-    #                     logging.exception(e)
-    #                     checkpoint = datetime.now()
-    #                     failures += 1
-    #                     elapsed_min = (checkpoint - start).total_seconds() / 60.0
-    #                     logging.warning(f'Insertion has failed {failures} time(s). Time elapsed: {elapsed_min} minutes')
-    #                     logging.warning(f'chunk failed to insert')
-    #                     logging.warning(f'retrying chunk in {timeout} seconds')
-    #                     time.sleep(timeout)
-    #
-    #     return self.tbl_obj
 
 
 class SQLInsert:

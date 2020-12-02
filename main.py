@@ -23,7 +23,7 @@ def main(*args, **kwargs):
     signal.signal(signal.SIGINT, keyboard_interrupt_handler)
 
     # initialize the logger
-    logger = SQLLogger(queue=None, server='SCSQLD2', database='OpSched', table='FileCatalogTest_V4', schema='dbo',
+    logger = SQLLogger(queue=None, server='SCSQLD2', database='OpSched', table='FileSystemLogger', schema='dbo',
                        driver='SQL+Server')
 
     # initialize the coordinator with 6 workers and a scraper function
@@ -32,6 +32,7 @@ def main(*args, **kwargs):
     # initialize the observer using the path and passing the coordinator
     observer = EventObserver(path=kwargs['directory'],
                              coordinator=coordinator,
+                             recursive=kwargs['recursive']
                              )
 
     # start the context
@@ -63,7 +64,7 @@ if __name__ == '__main__':
     testing = True
 
     if testing:
-        _cmd = ['--directory', r'\\scdatap1\InformationTechnology\Aaron Genovia\temp\NewFileWatcher',
+        _cmd = ['--directory', r'\\scfhp22\ops',
                 '--recursive', '--workers', '6']
         _args = parse_arguments(_cmd)
     else:

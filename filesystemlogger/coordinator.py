@@ -4,6 +4,7 @@ from queue import Queue
 import multiprocessing as mp
 from watchdog.events import FileSystemEventHandler
 import logging
+from datetime import datetime
 
 
 class EventCoordinator(FileSystemEventHandler):
@@ -157,11 +158,19 @@ class EventCoordinator(FileSystemEventHandler):
         logging.debug('terminating worker pool')
         self.terminate_workers()
         logging.debug('terminating logger thread')
+        self.terminate_logger()
+
+    def terminate_logger(self):
         self.logger.stop()
+        self.logger.join()
 
     def terminate_workers(self):
         """This destructor ensures that the workers in the multiprocessing pool have finished all their tasks and are
         exited gracefully"""
+        logging.debug('closing multiprocessing pool, please wait as all workers wrap up...')
+        __start = datetime.now()
         self.pool.terminate()
         self.pool.close()
         self.pool.join()
+        __end = datetime.now()
+        logging.debug(f"pool successfully closed. {__end - __start} elapsed")
