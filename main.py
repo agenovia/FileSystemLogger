@@ -3,6 +3,7 @@ import signal
 import sys
 import time
 from argparse import ArgumentParser
+import yaml
 
 from filesystemlogger.observer import EventObserver
 from filesystemlogger.coordinator import EventCoordinator
@@ -18,21 +19,26 @@ def keyboard_interrupt_handler(sig, frame):
     exit(0)
 
 
-def main(*args, **kwargs):
+def yaml_parser(config):
+    if config is not None:
+        with open(config, 'r') as stream:
+            return yaml.safe_load(stream)
+    return None
+
+
+def main(config):
     # handle all interrupts in this scope via a call to keyboard_interrupt_handler
     signal.signal(signal.SIGINT, keyboard_interrupt_handler)
 
     # initialize the logger
-    logger = SQLLogger(queue=None, server='SCSQLD2', database='OpSched', table='FileSystemLogger', schema='dbo',
-                       driver='SQL+Server')
+    logger = SQLLogger(queue=None, **config['logger'])
 
     # initialize the coordinator with 6 workers and a scraper function
-    coordinator = EventCoordinator(workers=int(kwargs['workers']), scraper=scrape, logger=logger)
+    coordinator = EventCoordinator(scraper=scrape, logger=logger, **config['scraper'])
 
     # initialize the observer using the path and passing the coordinator
-    observer = EventObserver(path=kwargs['directory'],
-                             coordinator=coordinator,
-                             recursive=kwargs['recursive']
+    observer = EventObserver(coordinator=coordinator,
+                             **config['observer']
                              )
 
     # start the context
@@ -46,12 +52,11 @@ def main(*args, **kwargs):
 
 def parse_arguments(args):
     parser = ArgumentParser()
-    parser.add_argument('-d', '--directory', required=True, help="This is the root directory to log changes.")
-    parser.add_argument('-r', '--recursive', action='store_true', required=False,
-                        help="Setting this to True will allow the Observer to watch changes for all subdirectories "
-                             "under the root directory.")
-    parser.add_argument('-w', '--workers', required=False,
-                        help="The maximum allowed workers for scraping metainformation. Cannot be less than 1.")
+    mutex = parser.add_mutually_exclusive_group()
+    mutex.add_argument('--create_config', action='store_true', required=False,
+                       help="Creates an empty configuration template file in the current directory.")
+    mutex.add_argument('--configuration', required=False,
+                       help="The configuration file to use.")
     arguments = parser.parse_args(args)
     return arguments
 
@@ -64,10 +69,27 @@ if __name__ == '__main__':
     testing = True
 
     if testing:
-        _cmd = ['--directory', r'\\scfhp22\ops',
-                '--recursive', '--workers', '6']
+        _cmd = ['--config', r'C:\Users\aarong.SCC_NT\PycharmProjects\FileSystemLogger\config.yml']
         _args = parse_arguments(_cmd)
+        _config = yaml_parser(_args.configuration)
     else:
         _args = parse_arguments(sys.argv[1:])
+        _config = yaml_parser(_args.configuration)
 
-    main(**{'directory': _args.directory, 'recursive': _args.recursive, 'workers': _args.workers})
+    if _args.create_config:
+        with open(r'./configuration_template.yml', 'w') as f:
+            f.write('# make sure to not include the angled brackets <>\n')
+            _template = {'observer': {'path': '<path_to_file>', 'recursive': '<true or false>'},
+                         'scraper': {'workers': 6},
+                         'logger': {'server': '<name of SQL server>',
+                                    'database': '<name of SQL database>',
+                                    'table': '<name of SQL table>',
+                                    'schema': 'dbo', 'driver': 'SQL+Server'
+                                    }
+                         }
+            yaml.dump(_template, f)
+
+    if _config is not None:
+        main(_config)
+    else:
+        parse_arguments(['--help'])
