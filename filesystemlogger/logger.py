@@ -8,7 +8,9 @@ import time
 from contextlib import contextmanager
 from datetime import datetime
 from threading import Thread
-
+from collections import deque
+import pickle
+import uuid
 import sqlalchemy as sa
 from sqlalchemy.exc import *
 
@@ -33,6 +35,7 @@ class SQLLogger(Thread):
         :param driver: ODBC driver to use
         '''
         super().__init__()
+        self.name = 'LoggerThread'
         self.callback = callback
         self.queue = queue
         self.server = server
@@ -44,6 +47,9 @@ class SQLLogger(Thread):
 
         # reusing objects so I don't have to do a lookup every time
         self.tbl_obj = tbl_obj
+
+        # set this to False when we want the thread to exit
+        self.should_keep_running = True
 
     def _tbl_obj(self, timeout=60):
         while True:
@@ -113,12 +119,31 @@ class SQLLogger(Thread):
                 'DestinationCreationTime': _dst['created_time'],
                 'DestinationModifiedTime': _dst['modified_time'],
                 }
+        return _ins
 
     def run(self):
         self.tbl_obj = self._tbl_obj() if self.tbl_obj is None else self.tbl_obj
-        while True:
+        while self.should_keep_running:
             item = self.queue.get()
-            self.callback(item)
+            _ins = self.prepare_inserts(item)
+            self.callback(_ins)
+
+    def stop(self):
+        logging.debug(f'the logger has received a signal to terminate')
+        logging.debug(f'stopping thread {self.name}')
+        self.should_keep_running = False
+
+        __start = datetime.now()
+        if not self.queue.empty():
+            logging.debug(f'saving {self.queue.qsize()} objects to a recovery file')
+            _savequeue = deque()
+            while not self.queue.empty():
+                _savequeue.append(self.queue.get_nowait())
+            _recov = f"recovery_{uuid.uuid4().__str__().replace('-', '')}"
+            with open(_recov, 'wb') as f:
+                pickle.dump(_savequeue, f)
+        __end = datetime.now()
+        logging.debug(f"logger thread successfully stopped. {__end - __start} elapsed")
 
     # def insert(self, n=100, timeout=60):
     #     """Extracts dictionary objects from the queue and inserts them to the target table object

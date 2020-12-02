@@ -95,6 +95,8 @@ class EventCoordinator(FileSystemEventHandler):
 
         self.logger.start()
 
+        self.loggerstopped = False
+
     def __repr__(self):
         return f"EventCoordinator(workers={self.workers}, scraper={self.scraper.__repr__()}, " \
                f"logger={self.logger.__repr__()})"
@@ -152,7 +154,10 @@ class EventCoordinator(FileSystemEventHandler):
         # TODO methods: (1) a method that wraps up all work remaining in the queue and inserts them to a SQL table or
         # TODO otherwise logs them then terminate; (2) a locking mechanism for the queue that the coordinator has to
         # TODO wait for before it can continue with destruction
-        pass
+        logging.debug('terminating worker pool')
+        self.terminate_workers()
+        logging.debug('terminating logger thread')
+        self.logger.stop()
 
     def terminate_workers(self):
         """This destructor ensures that the workers in the multiprocessing pool have finished all their tasks and are

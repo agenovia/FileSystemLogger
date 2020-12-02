@@ -113,7 +113,6 @@ read_directory_changes.WindowsApiEmitter.queue_events = modified_queue_events
 """end of monkeypatch"""
 
 
-
 class EventObserver(Observer):
     def __init__(self, path: str, coordinator: EventCoordinator, timeout: int = 5, recursive: bool = False):
         """
@@ -149,8 +148,8 @@ class EventObserver(Observer):
         """Context destructor. Handles destruction of multiprocessing pools in a controlled manner"""
         logging.debug('closing multiprocessing pool, please wait as all workers wrap up...')
         __start = datetime.now()
-        # make sure the coordinator terminates all its workers before continuing with observer destruction
-        self.coordinator.terminate_workers()
+        # make sure the coordinator terminates the logger and all workers before continuing with observer destruction
+        self.coordinator.terminate_operations()
         self.stop()
         self.join()
         __end = datetime.now()

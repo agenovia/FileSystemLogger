@@ -19,6 +19,9 @@ def keyboard_interrupt_handler(sig, frame):
 
 
 def main(*args, **kwargs):
+    # handle all interrupts in this scope via a call to keyboard_interrupt_handler
+    signal.signal(signal.SIGINT, keyboard_interrupt_handler)
+
     # initialize the logger
     logger = SQLLogger(queue=None, server='SCSQLD2', database='OpSched', table='FileCatalogTest_V4', schema='dbo',
                        driver='SQL+Server')
@@ -30,9 +33,6 @@ def main(*args, **kwargs):
     observer = EventObserver(path=kwargs['directory'],
                              coordinator=coordinator,
                              )
-
-    # handle all interrupts in this scope via a call to keyboard_interrupt_handler
-    signal.signal(signal.SIGINT, keyboard_interrupt_handler)
 
     # start the context
     with observer:
