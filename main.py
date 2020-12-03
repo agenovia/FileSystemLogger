@@ -93,7 +93,7 @@ if __name__ == '__main__':
     testing = True
 
     if testing:
-        _cmd = ['--configuration', r'C:\Users\aarong.SCC_NT\PycharmProjects\FileSystemLogger\config_test.yml']
+        _cmd = ['--configuration', r'testing.yml']
         _args = parse_arguments(_cmd)
         _config = yaml_parser(_args.configuration)
     else:
