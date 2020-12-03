@@ -6,11 +6,8 @@ import logging
 import pyodbc
 import time
 from contextlib import contextmanager
-from datetime import datetime
-from threading import Thread
-from collections import deque
-import pickle
-import uuid
+from threading import Thread, Event
+
 import sqlalchemy as sa
 from sqlalchemy.exc import *
 
@@ -24,9 +21,8 @@ class TableNotFound(Exception):
 
 
 class SQLLogger(Thread):
-    def __init__(self, queue, server, database, table, schema, driver, tbl_obj=None, callback=None):
+    def __init__(self, server: str, database: str, table: str, schema: str, driver: str, tbl_obj=None):
         '''
-
         :param queue: This is the threading Queue to use for inserting new records
         :param server: This is the server for SQL to connect to
         :param database: This is the database that contains the target table
@@ -36,8 +32,7 @@ class SQLLogger(Thread):
         '''
         super().__init__()
         self.name = 'LoggerThread'
-        self.callback = callback
-        self.queue = queue
+        self.queue = None
         self.server = server
         self.database = database
         self.table = table
@@ -49,21 +44,21 @@ class SQLLogger(Thread):
         self.tbl_obj = tbl_obj
 
         # set this to False when we want the thread to exit
-        self.should_keep_running = True
+        self.stop_event = Event()
 
-    def __repr__(self):
+    def __str__(self):
         return f'[{self.server}].[{self.database}].[{self.schema}].[{self.table}]'
 
     def _tbl_obj(self, timeout=60):
         while True:
-            try:
-                logging.debug(f"inspecting metadata of database '{self.database}' on the server '{self.server}'")
-                if self.schema is None:
-                    meta = sa.schema.MetaData()
-                else:
-                    meta = sa.schema.MetaData(schema=self.schema)
+            if not self.stop_event.is_set():
+                try:
+                    logging.debug(f"inspecting metadata of database '{self.database}' on the server '{self.server}'")
+                    if self.schema is None:
+                        meta = sa.schema.MetaData()
+                    else:
+                        meta = sa.schema.MetaData(schema=self.schema)
 
-                if self.should_keep_running:
                     meta.reflect(bind=self.engine)
                     tbl = None
                     logging.debug(f'searching for table {self.table}')
@@ -75,13 +70,13 @@ class SQLLogger(Thread):
                         raise TableNotFound(self.table)
                     else:
                         return tbl
-            except (pyodbc.ProgrammingError, pyodbc.OperationalError, OperationalError) as e:
-                logging.exception(e, exc_info=True)
-                logging.debug(f'SQL connection could not be established. Retrying in {timeout} seconds')
-                time.sleep(timeout)
-            except TableNotFound as e:
-                logging.exception(e, exc_info=True)
-                raise
+                except (pyodbc.ProgrammingError, pyodbc.OperationalError, OperationalError) as e:
+                    logging.exception(e, exc_info=True)
+                    logging.debug(f'SQL connection could not be established. Retrying in {timeout} seconds')
+                    time.sleep(timeout)
+                except TableNotFound as e:
+                    logging.exception(e, exc_info=True)
+                    raise
 
     def _update_tbl_obj(self):
         self.tbl_obj = self._tbl_obj()
@@ -91,7 +86,7 @@ class SQLLogger(Thread):
         conn = None
         while conn is None:
             try:
-                logging.debug('connecting to {}'.format(self.__repr__()))
+                logging.debug('connecting to {}'.format(self.__str__()))
                 conn = self.engine.connect()
             except (pyodbc.OperationalError, pyodbc.ProgrammingError, OperationalError) as e:
                 logging.exception(e, exc_info=True)
@@ -130,7 +125,7 @@ class SQLLogger(Thread):
         failures = 0
         start = None
         with self.sql_connection() as con:
-            while self.should_keep_running:
+            while not self.stop_event.is_set():
                 try:
                     start = time.time()
                     item = self.queue.get()
@@ -146,24 +141,11 @@ class SQLLogger(Thread):
                     logging.warning(f'Insertion has failed {failures} time(s). Time elapsed: {elapsed_min} minutes')
                     logging.warning(f'retrying in {timeout} seconds')
                     time.sleep(timeout)
-                    self.callback(e)
 
     def stop(self):
         logging.debug(f'the logger has received a signal to terminate')
         logging.debug(f'stopping thread {self.name}')
-        self.should_keep_running = False
-
-        __start = datetime.now()
-        if not self.queue.empty():
-            logging.debug(f'saving {self.queue.qsize()} objects to a recovery file')
-            _savequeue = deque()
-            while not self.queue.empty():
-                _savequeue.append(self.queue.get_nowait())
-            _recov = f"recovery_{uuid.uuid4().__str__().replace('-', '')}"
-            with open(_recov, 'wb') as f:
-                pickle.dump(_savequeue, f)
-        __end = datetime.now()
-        logging.debug(f"logger thread successfully stopped. {__end - __start} elapsed")
+        self.stop_event.set()
 
 
 if __name__ == '__main__':

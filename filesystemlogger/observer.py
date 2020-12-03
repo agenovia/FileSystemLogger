@@ -68,10 +68,11 @@ import logging
 import time
 from datetime import datetime
 
-from filesystemlogger.coordinator import EventCoordinator
 from watchdog.observers import (Observer,
                                 read_directory_changes,
                                 )
+
+from filesystemlogger.coordinator import EventCoordinator
 
 """
 IMPORTANT
@@ -116,11 +117,9 @@ read_directory_changes.WindowsApiEmitter.queue_events = modified_queue_events
 class EventObserver(Observer):
     def __init__(self, path: str, coordinator: EventCoordinator, timeout: int = 5, recursive: bool = False):
         """
-        Context manager for watching directory changes
-
-        :param path: This is the root path of the directory to watch. All subdirectory events will also be captured.
-        :param timeout: The timeout in seconds to attempt to query a file event before giving up.
-        :return:
+        Context manager for watching directory changes. The EventObserver simply watches a directory for changes and
+        delegates all other tasks to the EventCoordinator. When the context is closed, the EventObserver tells the
+        EventCoordinator to stop and exit gracefully.
         """
         super().__init__(timeout=timeout)
         self.path = path
@@ -145,9 +144,9 @@ class EventObserver(Observer):
         self.close()
 
     def close(self):
-        """Context destructor. Handles destruction of multiprocessing pools in a controlled manner"""
+        """Context destructor. Notifies the EventCoordinator to cease before terminating the EventObserver."""
         # tell the coordinator to terminate the logger and all workers before continuing with observer destruction
-        self.coordinator.terminate_operations()
+        self.coordinator.terminate()
         logging.debug('terminating observer')
         __start = datetime.now()
         self.stop()
