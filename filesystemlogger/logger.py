@@ -23,12 +23,8 @@ class TableNotFound(Exception):
 class SQLLogger(Thread):
     def __init__(self, server: str, database: str, table: str, schema: str, driver: str, tbl_obj=None):
         '''
-        :param queue: This is the threading Queue to use for inserting new records
-        :param server: This is the server for SQL to connect to
-        :param database: This is the database that contains the target table
-        :param table: This is the name of the target table
-        :param schema: Target schema
-        :param driver: ODBC driver to use
+        Daemonize this and let it handle all inserts as well as the necessary formatting for inserting into the target
+        table
         '''
         super().__init__()
         self.name = 'LoggerThread'
