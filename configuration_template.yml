@@ -1,0 +1,13 @@
+# make sure to not include the angled brackets <>
+coordinator:
+  recovery: <path to recovery directory, if blank then no recovery will be attempted>
+  workers: 6
+logger:
+  database: <name of SQL database>
+  driver: SQL+Server
+  schema: dbo
+  server: <name of SQL server>
+  table: <name of SQL table>
+observer:
+  path: <path_to_file>
+  recursive: <true or false>
