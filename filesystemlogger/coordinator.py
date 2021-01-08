@@ -30,6 +30,7 @@ class EventCoordinator(FileSystemEventHandler):
     events to a synchronous queue. The SQLLogger daemon, which always checks the queue, then takes the events, formats
     them for SQL table insertion, and inserts them to the target table.
     """
+    TERMINATE = False
 
     def __init__(self, workers: int, scraper, logger, recovery, no_table_logging=False, no_recovery=False):
         super().__init__()
@@ -103,21 +104,21 @@ class EventCoordinator(FileSystemEventHandler):
     def on_moved(self, event):
         # if there is a scraper provided, then delegate tasks to the scraper and log both its successful callback and
         # its error callback
-        if self.scraper is not None:
+        if self.scraper is not None and not self.TERMINATE:
             self.pool.apply_async(self.scraper, args=[event, time.time()], callback=self.scraper_callback,
                                   error_callback=self.scraper_exception)
 
     def on_created(self, event):
         # if there is a scraper provided, then delegate tasks to the scraper and log both its successful callback and
         # its error callback
-        if self.scraper is not None:
+        if self.scraper is not None and not self.TERMINATE:
             self.pool.apply_async(self.scraper, args=[event, time.time()], callback=self.scraper_callback,
                                   error_callback=self.scraper_exception)
 
     def on_deleted(self, event):
         # if there is a scraper provided, then delegate tasks to the scraper and log both its successful callback and
         # its error callback
-        if self.scraper is not None:
+        if self.scraper is not None and not self.TERMINATE:
             self.pool.apply_async(self.scraper, args=[event, time.time()], callback=self.scraper_callback,
                                   error_callback=self.scraper_exception)
 
@@ -127,8 +128,13 @@ class EventCoordinator(FileSystemEventHandler):
 
     def terminate(self):
         """Call this to terminate the worker pool and the logger daemon gracefully"""
+        # set the TERMINATE property so that the observer threads do not capture events as the pools are being destroyed
+        self.TERMINATE = True
+
+        # destroy worker pool
         logging.debug('terminating worker pool')
         self._terminate_workers()
+        # close the logger thread
         logging.debug('terminating logger thread')
         self._terminate_logger()
 

@@ -80,7 +80,8 @@ class SQLLogger(Thread):
     @contextmanager
     def sql_connection(self):
         conn = None
-        while conn is None:
+
+        while not self.stop_event.is_set() and conn is None:
             try:
                 logging.debug('connecting to {}'.format(self.__str__()))
                 conn = self.engine.connect()
@@ -120,27 +121,36 @@ class SQLLogger(Thread):
         self.tbl_obj = self._tbl_obj() if self.tbl_obj is None else self.tbl_obj
         failures = 0
         start = None
-        with self.sql_connection() as con:
-            while not self.stop_event.is_set():
-                try:
-                    start = time.time()
-                    item = self.queue.get()
-                    _ins = self.prepare_inserts(item)
-                    logging.debug(_ins)
-                    con.execute(self.tbl_obj.insert(_ins))
-                    failures = 0
-                except (pyodbc.ProgrammingError, pyodbc.OperationalError) as e:
-                    logging.exception(e)
-                    checkpoint = time.time()
-                    failures += 1
-                    elapsed_min = (checkpoint - start) / 60.0
-                    logging.warning(f'Insertion has failed {failures} time(s). Time elapsed: {elapsed_min} minutes')
-                    logging.warning(f'retrying in {timeout} seconds')
-                    time.sleep(timeout)
+        item = None
+        while not self.stop_event.is_set():
+            with self.sql_connection() as con:
+                while not self.stop_event.is_set():
+                    try:
+                        start = time.time()
+                        if not self.queue.empty():
+                            item = self.queue.get_nowait()
+                            _ins = self.prepare_inserts(item)
+                            logging.debug(f'INSERTING: {_ins}')
+                            con.execute(self.tbl_obj.insert(_ins))
+                            failures = 0
+                        else:
+                            time.sleep(1)
+                    except (pyodbc.ProgrammingError, pyodbc.OperationalError) as e:
+                        logging.exception(e)
+                        if item is not None:
+                            self.queue.put_nowait(item)
+                        checkpoint = time.time()
+                        failures += 1
+                        elapsed_min = (checkpoint - start) / 60.0
+                        logging.warning(f'Insertion has failed {failures} time(s). Time elapsed: {elapsed_min} minutes')
+                        logging.warning(f'retrying in {timeout} seconds')
+                        time.sleep(timeout)
+                        break
 
     def stop(self):
         logging.debug(f'the logger has received a signal to terminate')
-        logging.debug(f'stopping thread {self.name}')
+        logging.debug(f'stopping thread {self.name}. Please allow up to a minute as the metadata reflection may have '
+                      f'already started and will need to exit before the thread can be safely closed.')
         self.stop_event.set()
 
 
