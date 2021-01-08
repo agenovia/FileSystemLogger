@@ -1,3 +1,4 @@
+import os
 import logging
 import signal
 import sys
@@ -88,7 +89,10 @@ def create_template():
 if __name__ == '__main__':
     from utils.logit import start_logging
 
-    start_logging()
+    logging_directory = os.path.join(os.getcwd(), 'logs')
+    if not os.path.isdir(logging_directory):
+        os.makedirs(logging_directory)
+    start_logging(logging_directory)
 
     testing = True
 
@@ -104,6 +108,7 @@ if __name__ == '__main__':
         create_template()
 
     if _config is not None:
+        logging.debug('begin')
         main(_config, _args)
     else:
         parse_arguments(['--help'])
