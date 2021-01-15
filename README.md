@@ -5,7 +5,7 @@ Python 3.7.4
 
 ## Prerequisites
 ```
-pip install watchdog sqlalchemy pyodbc
+pip install watchdog sqlalchemy pyodbc pyyaml
 ```
 
 ## TODO
