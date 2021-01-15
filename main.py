@@ -61,9 +61,9 @@ def parse_arguments(args):
     mutex.add_argument('--configuration', required=False,
                        help="The configuration file to use.")
     parser.add_argument('--no_table_logging', default=False, action='store_true',
-                        help='If specified, then the events are only captured and never logged')
+                        help='If specified, then the events are only captured but not logged to a SQL table.')
     parser.add_argument('--no_recovery', default=False, action='store_true',
-                        help='If specified, then no recovery will be attempted. This overrides the recovery option')
+                        help='If specified, then no recovery will be attempted. This overrides the recovery option.')
     arguments = parser.parse_args(args)
     return arguments
 
@@ -94,7 +94,7 @@ if __name__ == '__main__':
         os.makedirs(logging_directory)
     start_logging(logging_directory)
 
-    testing = True
+    testing = False
 
     if testing:
         _cmd = ['--configuration', r'C:\Users\aarong.SCC_NT\PycharmProjects\FileSystemLogger\config.yml']
